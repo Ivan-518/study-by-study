@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import AssistantPanel from '../components/AssistantPanel.vue'
 
 defineProps<{ query: string }>()
 const emit = defineEmits<{ search: [query: string]; navigate: [page: 'path' | 'assistant'] }>()
@@ -29,7 +28,6 @@ function submit() { emit('search', searchText.value) }
         <div class="milestones"><div><b>1</b><p><strong>理解 RAG 与 Agentic 模式</strong><small>概念、架构与核心流程</small></p><span>已完成 <i class="pi pi-check-circle" /></span></div><div><b>2</b><p><strong>构建知识检索系统</strong><small>文档处理、向量化与混合检索</small></p><span>已完成 <i class="pi pi-check-circle" /></span></div><div class="current"><b>3</b><p><strong>设计与实现 Agent</strong><small>工具使用、规划、记忆与执行</small></p><span>进行中 <i class="pi pi-spinner" /></span></div><div><b>4</b><p><strong>评估、部署与优化</strong><small>评估体系、可观测性与上线实践</small></p><span>未开始 <i class="pi pi-circle" /></span></div></div>
         <button class="link-button" @click="emit('navigate', 'path')">继续学习 <i class="pi pi-arrow-right" /></button>
       </section>
-      <AssistantPanel @open="emit('navigate', 'assistant')" @ask="emit('navigate', 'assistant')" />
     </div>
   </main>
 </template>

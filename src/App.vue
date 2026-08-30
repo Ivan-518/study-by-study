@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useLearningStore, type PageKey } from './stores/learning'
 import AppSidebar from './components/AppSidebar.vue'
 import ExploreView from './views/ExploreView.vue'
@@ -9,8 +9,10 @@ import LibraryView from './views/LibraryView.vue'
 import NotesView from './views/NotesView.vue'
 import AssistantView from './views/AssistantView.vue'
 import SettingsView from './views/SettingsView.vue'
+import AssistantPanel from './components/AssistantPanel.vue'
 
 const store = useLearningStore()
+const drawerOpen = ref(false)
 const currentView = computed(() => ({
   explore: ExploreView, search: SearchView, path: PathView, library: LibraryView,
   notes: NotesView, assistant: AssistantView, settings: SettingsView,
@@ -18,8 +20,11 @@ const currentView = computed(() => ({
 
 function navigate(page: PageKey) { store.go(page) }
 function openAssistant(question: string) { store.addNote(`待追问：${question}`); store.go('assistant') }
+function openFullAssistant() { drawerOpen.value = false; store.go('assistant') }
 </script>
 
 <template>
-  <div class="app-shell"><AppSidebar :active="store.page" @navigate="navigate" /><component :is="currentView" :query="store.query" :selected="store.selectedSources" :notes="store.notes" @navigate="navigate" @search="store.search" @ask="openAssistant" @add="store.addNote" @remove="store.removeNote" /></div>
+  <div class="app-shell"><AppSidebar :active="store.page" @navigate="navigate" /><component :is="currentView" :query="store.query" :selected="store.selectedSources" :notes="store.notes" @navigate="navigate" @search="store.search" @ask="openAssistant" @add="store.addNote" @remove="store.removeNote" />
+    <button class="assistant-fab" type="button" @click="drawerOpen = true"><i class="pi pi-sparkles" /><span>AI 助手</span></button>
+    <aside v-if="drawerOpen" class="tutor-drawer" aria-label="AI 学习助手侧栏"><button class="drawer-close" type="button" aria-label="关闭 AI 学习助手" @click="drawerOpen = false"><i class="pi pi-times" /></button><AssistantPanel @open="openFullAssistant" @ask="openFullAssistant" /></aside></div>
 </template>
