@@ -25,6 +25,6 @@ function openFullAssistant() { drawerOpen.value = false; store.go('assistant') }
 
 <template>
   <div class="app-shell"><AppSidebar :active="store.page" @navigate="navigate" /><component :is="currentView" :query="store.query" :selected="store.selectedSources" :notes="store.notes" @navigate="navigate" @search="store.search" @ask="openAssistant" @add="store.addNote" @remove="store.removeNote" />
-    <button class="assistant-fab" type="button" @click="drawerOpen = true"><i class="pi pi-sparkles" /><span>AI 助手</span></button>
+    <button class="assistant-fab" type="button" @click="drawerOpen = true"><i class="pi pi-sparkles" /></button>
     <aside v-if="drawerOpen" class="tutor-drawer" aria-label="AI 学习助手侧栏"><button class="drawer-close" type="button" aria-label="关闭 AI 学习助手" @click="drawerOpen = false"><i class="pi pi-times" /></button><AssistantPanel @open="openFullAssistant" @ask="openFullAssistant" /></aside></div>
 </template>
