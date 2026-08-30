@@ -18,6 +18,6 @@ const modules = [
           </article></div></section>
       <AssistantPanel compact @open="emit('navigate', 'assistant')" @ask="emit('navigate', 'assistant')" />
     </div>
-    <section class="panel continuation"><header><strong>继续探索</strong><span>不影响学习计划，可按兴趣自由探索</span></header><div><button v-for="item in ['RAG 检索评测', 'Agent Memory', 'Tool Calling', '安全与可观测性']" :key="item"><span class="tech-thumb small-thumb"><i class="pi pi-circle-fill" /></span><strong>{{ item }}</strong><small>阅读 20 分钟</small><i class="pi pi-bookmark" /></button></div></section>
+    <section class="panel continuation"><header><strong>继续探索</strong><span>按兴趣自由探索，随时暂停或恢复</span></header><div><button v-for="item in ['RAG 检索评测', 'Agent Memory', 'Tool Calling', '安全与可观测性']" :key="item"><span class="tech-thumb small-thumb"><i class="pi pi-circle-fill" /></span><strong>{{ item }}</strong><small>阅读 20 分钟</small><i class="pi pi-bookmark" /></button></div></section>
   </main>
 </template>

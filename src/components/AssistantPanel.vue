@@ -15,7 +15,7 @@ function send() {
 <template>
   <section class="assistant-panel" :class="{ compact }">
     <header class="panel-title"><span><i class="pi pi-sparkles" />{{ title }}</span><span><i class="pi pi-refresh" /> <i class="pi pi-ellipsis-h" /></span></header>
-    <div class="assistant-greeting"><span class="bot-avatar"><i class="pi pi-android" /></span><div><strong v-if="!compact">今天想深入什么？</strong><strong v-else>你正在学习「设计与实现 Agent」阶段。</strong><p>{{ compact ? '这是构建智能体能力的关键一步，坚持住，你已经很棒了 💪' : '我可以帮你解答问题、推荐资源、生成学习计划。' }}</p></div></div>
+    <div class="assistant-greeting"><span class="bot-avatar"><i class="pi pi-android" /></span><div><strong v-if="!compact">今天想深入什么？</strong><strong v-else>你正在学习「设计与实现 Agent」阶段。</strong><p>{{ compact ? '这是构建智能体能力的关键一步，坚持住，你已经很棒了 💪' : '我可以帮你解答问题、推荐资源、生成知识卡片。' }}</p></div></div>
     <div class="assistant-actions">
       <button @click="emit('ask', '解释一下 RAG 的工作原理')"><i class="pi pi-lightbulb" />解释一下 RAG 的工作原理 <i class="pi pi-angle-right" /></button>
       <button @click="emit('ask', '推荐学习大模型微调的资源')"><i class="pi pi-file-edit" />推荐学习大模型微调的资源 <i class="pi pi-angle-right" /></button>

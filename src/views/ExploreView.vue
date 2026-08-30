@@ -12,11 +12,6 @@ const signals = [
   ['使用 Next.js 14 构建全栈 AI 网页应用', '教程', '昨天 · 2.3k 阅读', 'next'],
   ['微软发布 Phi-3-mini：小模型，大能量', '研究速递', '昨天 · 1.1k 阅读', 'orb'],
 ]
-const week = [
-  ['周一', '5/19', '阅读：RAG 核心概念', '30 分钟', true], ['周二', '5/20', '实践：构建基础检索', '60 分钟', false],
-  ['周三', '5/21', '学习：Agent 设计模式', '45 分钟', false], ['周四', '5/22', '动手：实现 Agent', '90 分钟', false],
-  ['周五', '5/23', '项目：Mini RAG 应用', '120 分钟', false], ['周末', '5/24 - 5/25', '复习与优化', '60 分钟', false],
-]
 function submit() { emit('search', searchText.value) }
 </script>
 
@@ -36,6 +31,5 @@ function submit() { emit('search', searchText.value) }
       </section>
       <AssistantPanel @open="emit('navigate', 'assistant')" @ask="emit('navigate', 'assistant')" />
     </div>
-    <section class="panel weekly-plan"><header class="panel-title"><strong>本周学习计划 <span>5月19日 - 5月25日</span></strong><button>查看全部计划 <i class="pi pi-angle-right" /></button></header><div class="week-grid"><article v-for="day in week" :key="String(day[0])" :class="{ complete: day[4] }"><header><b>{{ day[0] }}</b><span>{{ day[1] }}</span></header><p><i class="pi" :class="day[0] === '周一' ? 'pi-book' : 'pi-code'" />{{ day[2] }}</p><small>{{ day[3] }}</small><i class="status pi" :class="day[4] ? 'pi-check-circle' : 'pi-circle'" /></article></div></section>
   </main>
 </template>
