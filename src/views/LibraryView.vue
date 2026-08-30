@@ -1,0 +1,19 @@
+<script setup lang="ts">
+import StatCard from '../components/StatCard.vue'
+const emit = defineEmits<{ navigate: [page: 'assistant' | 'path'] }>()
+const items = [
+  ['Agentic RAG 的决策循环', '深入拆解 Agent 如何在理解、检索、思考与行动之间形成闭环，提升复杂任务的完成质量。', '学习笔记', 'Agent　RAG　决策循环　工具调用', '2024-05-20　18 分钟阅读'],
+  ['混合检索：BM25 与向量召回', '对比稀疏检索与语义检索的优势，结合权重融合与重排序策略，提升召回效果。', '官方文档', '检索　BM25　向量检索　混合检索', '2024-05-18　22 分钟阅读'],
+  ['Transformer 注意力机制的直觉解释', '用直观方式理解注意力如何让模型在生成过程中关注重要信息。', '学习笔记', 'Transformer　注意力机制　模型原理', '2024-05-15　14 分钟阅读'],
+]
+</script>
+
+<template>
+  <main class="page library-page"><section class="page-heading grid-heading"><h1>知识库</h1><p>沉淀已学内容，随时回到你的上下文。</p></section><div class="global-search compact-search library-search"><i class="pi pi-search" /><input placeholder="搜索已保存的资料、笔记或概念..." /><button aria-label="筛选"><i class="pi pi-sliders-h" /></button></div>
+    <div class="stats-row"><StatCard icon="pi-file" label="已保存资料" :value="128" /><StatCard icon="pi-pencil" label="学习笔记" :value="36" tone="blue" /><StatCard icon="pi-hourglass" label="待深入" :value="12" tone="blue" /><StatCard icon="pi-verified" label="已掌握概念" :value="54" tone="blue" /></div>
+    <div class="library-layout"><aside class="panel library-filter"><h3>分类与标签</h3><button class="active"><i class="pi pi-file" />全部内容 <span>128</span></button><button><i class="pi pi-layer-group" />RAG <span>24</span></button><button><i class="pi pi-android" />Agent <span>28</span></button><button><i class="pi pi-sparkles" />模型原理 <span>26</span></button><button><i class="pi pi-wrench" />工程实践 <span>50</span></button><div class="tag-list"><span>向量检索</span><span>Prompt</span><span>Transformer</span><span>工具调用</span><span>评估</span></div></aside>
+      <section class="panel recent-list"><header class="panel-title"><strong>最近沉淀</strong></header><article v-for="(item,index) in items" :key="item[0]" :class="{ selected: index === 0 }"><i class="pi pi-circle" :class="{ 'pi-check-circle': index === 0 }" /><div class="tech-thumb orb"><i class="pi pi-circle-fill" /></div><div><span>{{ item[2] }}</span><h3>{{ item[0] }}</h3><p>{{ item[1] }}</p><div class="tag-list"><span v-for="tag in item[3].split('　')" :key="tag">{{ tag }}</span></div><small>{{ item[4] }}</small></div><i class="pi pi-bookmark" /><i class="pi pi-ellipsis-v" /></article><button class="link-button">查看全部 128 内容 <i class="pi pi-angle-right" /></button></section>
+      <aside class="library-side"><section class="panel knowledge-graph"><h3>关联知识</h3><div class="graph"><b>Agentic<br>RAG</b><i /><i /><i /><i /><i /><i /></div><button v-for="link in ['规划', '工具调用', '记忆', '可观测性']" :key="link"><i class="pi pi-file" />{{ link }}<i class="pi pi-angle-right" /></button></section><section class="panel quick-assistant"><header class="panel-title"><strong><i class="pi pi-android" /> AI 学习助手</strong></header><button v-for="question in ['解释一下 Agentic RAG 的决策循环', '比较 BM25 与向量检索的优势', '如何评估 RAG 系统的效果？']" :key="question" @click="emit('navigate', 'assistant')"><i class="pi pi-comments" />{{ question }}<i class="pi pi-angle-right" /></button></section></aside>
+    </div><section class="panel deep-dive"><header class="panel-title"><strong>待深入</strong></header><div><article v-for="title in ['GraphRAG：让知识图谱增强 RAG', 'ReAct 思维模式详解与实践', '评估 RAG：指标与方法']" :key="title"><div class="tech-thumb blocks"><i class="pi pi-circle-fill" /></div><h3>{{ title }}</h3><div class="tag-list"><span>RAG</span><span>知识图谱</span></div><small>学习于 2024-05-16　16 分钟阅读</small><i class="pi pi-bookmark" /><i class="pi pi-ellipsis-v" /></article><button class="primary-button" @click="emit('navigate', 'path')">继续整理 <i class="pi pi-angle-right" /></button></div></section>
+  </main>
+</template>
