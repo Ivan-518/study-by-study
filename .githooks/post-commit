@@ -1,0 +1,4 @@
+#!/bin/sh
+# Keep local commits in sync with the configured project remote when possible.
+# A failed network push must never invalidate a local commit.
+git push origin "$(git branch --show-current)" >/dev/null 2>&1 || true
