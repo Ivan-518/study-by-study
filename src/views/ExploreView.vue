@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke, isTauri } from '@tauri-apps/api/core'
 
 defineProps<{ query: string }>()
 const emit = defineEmits<{ search: [query: string]; navigate: [page: 'path' | 'assistant'] }>()
@@ -47,7 +47,7 @@ function relativeTime(value: string) {
 }
 
 async function refreshFeed(force = false) {
-  if (!('__TAURI_INTERNALS__' in window)) {
+  if (!isTauri()) {
     feedNotice.value = '桌面应用启动后将自动获取最新资讯'
     return
   }
