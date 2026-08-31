@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { invoke, isTauri } from '@tauri-apps/api/core'
-import type { DiscoveryLearningItem, LearningGoal } from '../stores/learning'
+import type { DiscoveryLearningItem, LearningGoal, LearningItem } from '../stores/learning'
+import { lessonById, lessons } from '../data/learningContent'
 
-defineProps<{ query: string }>()
-const emit = defineEmits<{ search: [query: string]; navigate: [page: 'path' | 'assistant' | 'radar']; 'add-learning': [item: DiscoveryLearningItem, goal: LearningGoal] }>()
+const props = defineProps<{ query: string; lessonProgress: Record<string, number>; currentLessonId: string; learningItems: LearningItem[] }>()
+const emit = defineEmits<{ search: [query: string]; navigate: [page: 'path' | 'assistant' | 'radar']; 'open-lesson': [id: string]; 'add-learning': [item: DiscoveryLearningItem, goal: LearningGoal] }>()
 const searchText = ref('')
 
 type DiscoveryEvidence = {
@@ -61,6 +62,12 @@ const signals = computed(() => {
     ]
   })
 })
+const continueLesson = computed(() => lessonById(props.currentLessonId)
+  || lessons.find((lesson) => (props.lessonProgress[lesson.id] || 0) > 0 && (props.lessonProgress[lesson.id] || 0) < 100)
+  || lessons.find((lesson) => (props.lessonProgress[lesson.id] || 0) < 100)
+  || lessons[0])
+const continueProgress = computed(() => props.lessonProgress[continueLesson.value?.id || ''] || 0)
+const pendingLearning = computed(() => props.learningItems.filter((item) => item.status !== 'done').slice(0, 2))
 
 function relativeTime(value: string) {
   const timestamp = new Date(value).getTime()
@@ -137,10 +144,10 @@ onMounted(() => { void refreshFeed() })
         <p v-if="!loadingFeed && !signals.length" class="feed-notice">正在等待社区与项目趋势信号同步；点击“刷新”可重新获取。</p>
         <small v-if="feedNotice" class="feed-notice">{{ feedNotice }}</small>
       </section>
-      <section class="panel path-card"><header class="panel-title"><strong>推荐学习路径 <em>进阶</em></strong><span><i class="pi pi-bookmark" /> <i class="pi pi-ellipsis-h" /></span></header>
-        <div class="path-top"><div><h2>构建 Agentic RAG 应用</h2><p>从零掌握 Agentic RAG 的核心原理与工程实践，构建可落地、可扩展的智能应用。</p><div class="meta-pills"><span><i class="pi pi-clock" />预计 12 小时</span><span><i class="pi pi-chart-bar" />中级</span><span><i class="pi pi-book" />4 个里程碑</span></div></div><div class="progress-ring"><b>64%</b><small>学习进度</small></div></div>
-        <div class="milestones"><div><b>1</b><p><strong>理解 RAG 与 Agentic 模式</strong><small>概念、架构与核心流程</small></p><span>已完成 <i class="pi pi-check-circle" /></span></div><div><b>2</b><p><strong>构建知识检索系统</strong><small>文档处理、向量化与混合检索</small></p><span>已完成 <i class="pi pi-check-circle" /></span></div><div class="current"><b>3</b><p><strong>设计与实现 Agent</strong><small>工具使用、规划、记忆与执行</small></p><span>进行中 <i class="pi pi-spinner" /></span></div><div><b>4</b><p><strong>评估、部署与优化</strong><small>评估体系、可观测性与上线实践</small></p><span>未开始 <i class="pi pi-circle" /></span></div></div>
-        <button class="link-button" @click="emit('navigate', 'path')">继续学习 <i class="pi pi-arrow-right" /></button>
+      <section class="panel path-card continue-card"><header class="panel-title"><strong>继续学习 <em>本地保存</em></strong><button type="button" @click="emit('navigate', 'path')">全部课程 <i class="pi pi-arrow-right" /></button></header>
+        <div v-if="continueLesson" class="path-top"><div><p class="continue-track">{{ continueLesson.track }} · {{ continueLesson.level }}</p><h2>{{ continueLesson.title }}</h2><p>{{ continueLesson.description }}</p><div class="meta-pills"><span><i class="pi pi-clock" />{{ continueLesson.duration }} 分钟</span><span><i class="pi pi-book" />{{ continueLesson.concepts.join(' / ') }}</span></div></div><div class="progress-ring" :style="{ background: `conic-gradient(#0966ed ${continueProgress}%, #e7edf7 0)` }"><b>{{ continueProgress }}%</b><small>本节进度</small></div></div>
+        <div class="continue-summary"><div><i class="pi pi-play-circle" /><span><strong>{{ continueProgress ? '从上次阅读位置继续' : '开始第一节课程' }}</strong><small>进度与本节笔记仅保存于本机。</small></span></div><button type="button" class="primary-button" @click="emit('open-lesson', continueLesson.id)">{{ continueProgress ? '继续学习' : '开始学习' }} <i class="pi pi-arrow-right" /></button></div>
+        <div v-if="pendingLearning.length" class="pending-mini"><strong>待推进的学习清单</strong><button v-for="item in pendingLearning" :key="item.id" type="button" @click="emit('navigate', 'path')"><span>{{ item.goal }}</span>{{ item.title }}<i class="pi pi-angle-right" /></button></div>
       </section>
     </div>
     <div v-if="selectedInsight" class="insight-backdrop" @click.self="closeInsight">
