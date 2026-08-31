@@ -19,6 +19,7 @@ export type DiscoveryLearningItem = Pick<LearningItem, 'title' | 'summary' | 'ur
 
 const savedNotes = localStorage.getItem('nexus-notes')
 const savedLearningItems = localStorage.getItem('nexus-learning-items')
+const savedLessonProgress = localStorage.getItem('nexus-lesson-progress')
 
 function readLearningItems(): LearningItem[] {
   if (!savedLearningItems) return []
@@ -27,6 +28,15 @@ function readLearningItems(): LearningItem[] {
     return Array.isArray(value) ? value as LearningItem[] : []
   } catch {
     return []
+  }
+}
+function readLessonProgress(): Record<string, number> {
+  if (!savedLessonProgress) return {}
+  try {
+    const value = JSON.parse(savedLessonProgress) as unknown
+    return value && typeof value === 'object' ? value as Record<string, number> : {}
+  } catch {
+    return {}
   }
 }
 
@@ -38,6 +48,8 @@ export const useLearningStore = defineStore('learning', {
     notes: savedNotes ? JSON.parse(savedNotes) as string[] : ['Agent 不是一次性调用 LLM', '如何评估 RAG 的检索质量？'],
     selectedSources: ['Agentic RAG 最佳实践指南', 'agentic-rag-best-practices', '面向复杂任务的 Agentic RAG'],
     learningItems: readLearningItems(),
+    lessonProgress: readLessonProgress(),
+    currentLessonId: '',
   }),
   actions: {
     go(page: PageKey) { this.page = page },
@@ -79,5 +91,11 @@ export const useLearningStore = defineStore('learning', {
       this.learningItems = this.learningItems.filter((item) => item.id !== id)
       localStorage.setItem('nexus-learning-items', JSON.stringify(this.learningItems))
     },
+    updateLessonProgress(id: string, progress: number) {
+      this.lessonProgress[id] = Math.max(0, Math.min(100, Math.round(progress)))
+      this.currentLessonId = id
+      localStorage.setItem('nexus-lesson-progress', JSON.stringify(this.lessonProgress))
+    },
+    setCurrentLesson(id: string) { this.currentLessonId = id },
   },
 })
