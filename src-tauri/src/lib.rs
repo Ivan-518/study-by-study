@@ -30,6 +30,40 @@ const CACHE_TTL_MINUTES: i64 = 30;
 const EVENT_WINDOW_DAYS: i64 = 30;
 const MAX_EVENTS: usize = 40;
 const MAX_AIBOT_ITEMS_PER_SYNC: usize = 24;
+const ASSISTANT_KEYRING_SERVICE: &str = "Nexus Learning";
+const ASSISTANT_KEYRING_USER: &str = "cloud-model-api-key";
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AssistantConfigStatus {
+    configured: bool,
+    base_url: String,
+    model: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveAssistantConfigInput {
+    base_url: String,
+    model: String,
+    api_key: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AssistantRequest {
+    question: String,
+    context_title: String,
+    context_text: String,
+    mode: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AssistantAnswer {
+    content: String,
+    model: String,
+}
 
 #[derive(Debug, Clone)]
 struct Candidate {
@@ -1394,6 +1428,82 @@ fn save_last_refresh(connection: &Connection, refreshed_at: &str) -> Result<(), 
     Ok(())
 }
 
+fn metadata_value(connection: &Connection, key: &str) -> Result<Option<String>, String> {
+    connection
+        .query_row(
+            "SELECT value FROM discovery_metadata WHERE key = ?1",
+            params![key],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())
+}
+
+fn save_metadata_value(connection: &Connection, key: &str, value: &str) -> Result<(), String> {
+    connection
+        .execute(
+            "INSERT INTO discovery_metadata (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![key, value],
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn safe_assistant_base_url(value: &str) -> Option<String> {
+    let trimmed = value.trim().trim_end_matches('/');
+    if trimmed.len() > 512
+        || !trimmed.starts_with("https://")
+        || trimmed.chars().any(|character| character.is_control() || character.is_whitespace())
+    {
+        return None;
+    }
+    let parsed = reqwest::Url::parse(trimmed).ok()?;
+    let host = parsed.host_str()?.to_ascii_lowercase();
+    if host == "localhost" || host.ends_with(".local") || host.parse::<std::net::IpAddr>().is_ok() {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
+fn assistant_key_entry() -> Result<keyring::Entry, String> {
+    keyring::Entry::new(ASSISTANT_KEYRING_SERVICE, ASSISTANT_KEYRING_USER)
+        .map_err(|_| "无法访问 Windows 凭据管理器。".to_string())
+}
+
+#[tauri::command]
+fn get_assistant_config(app: tauri::AppHandle) -> Result<AssistantConfigStatus, String> {
+    let connection = open_database(&app)?;
+    let base_url = metadata_value(&connection, "assistant_base_url")?.unwrap_or_default();
+    let model = metadata_value(&connection, "assistant_model")?.unwrap_or_default();
+    let configured = !base_url.is_empty()
+        && !model.is_empty()
+        && assistant_key_entry()
+            .and_then(|entry| entry.get_password().map_err(|_| "未配置密钥".to_string()))
+            .is_ok();
+    Ok(AssistantConfigStatus { configured, base_url, model })
+}
+
+#[tauri::command]
+fn save_assistant_config(app: tauri::AppHandle, input: SaveAssistantConfigInput) -> Result<AssistantConfigStatus, String> {
+    let base_url = safe_assistant_base_url(&input.base_url)
+        .ok_or_else(|| "服务地址必须是有效的 HTTPS 公网地址。".to_string())?;
+    let model = input.model.trim();
+    if model.is_empty() || model.len() > 160 || model.chars().any(|character| character.is_control()) {
+        return Err("请填写有效的模型名称。".to_string());
+    }
+    if input.api_key.trim().len() < 8 || input.api_key.len() > 1024 {
+        return Err("请填写有效的 API Key。".to_string());
+    }
+    assistant_key_entry()?
+        .set_password(input.api_key.trim())
+        .map_err(|_| "无法将 API Key 保存到 Windows 凭据管理器。".to_string())?;
+    let connection = open_database(&app)?;
+    save_metadata_value(&connection, "assistant_base_url", &base_url)?;
+    save_metadata_value(&connection, "assistant_model", model)?;
+    Ok(AssistantConfigStatus { configured: true, base_url, model: model.to_string() })
+}
+
 #[tauri::command]
 async fn refresh_discoveries(
     app: tauri::AppHandle,
@@ -1492,6 +1602,68 @@ fn is_safe_external_url(url: &str) -> bool {
 }
 
 #[tauri::command]
+async fn ask_assistant(app: tauri::AppHandle, input: AssistantRequest) -> Result<AssistantAnswer, String> {
+    let question = input.question.trim();
+    if question.is_empty() || question.len() > 8_000 {
+        return Err("请输入不超过 8000 个字符的问题。".to_string());
+    }
+    let connection = open_database(&app)?;
+    let base_url = metadata_value(&connection, "assistant_base_url")?
+        .and_then(|value| safe_assistant_base_url(&value))
+        .ok_or_else(|| "请先在设置中配置 AI 模型服务。".to_string())?;
+    let model = metadata_value(&connection, "assistant_model")?
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "请先在设置中填写模型名称。".to_string())?;
+    let api_key = assistant_key_entry()?
+        .get_password()
+        .map_err(|_| "未找到 API Key，请重新保存模型配置。".to_string())?;
+    let context_title = input.context_title.trim().chars().take(300).collect::<String>();
+    let context_text = input.context_text.trim().chars().take(8_000).collect::<String>();
+    let mode = match input.mode.as_str() {
+        "quiz" => "出一道能检验理解的小题；先只给题目与答题要求，等待用户回答后再反馈。",
+        "review" => "审阅用户的理解或方案，先肯定正确部分，再指出一个最重要的改进点与可执行下一步。",
+        _ => "用中文分层解释：先给直觉，再给关键机制、一个小例子和一个可执行练习。避免编造来源或事实。",
+    };
+    let system = format!(
+        "你是 Nexus 的 AI 学习导师，服务于已有 RAG/Agent 经验的个人学习者。{mode} 只依据用户提供的上下文和通用稳定知识回答；不确定时明确说明。回答要具体、紧凑，使用 Markdown。"
+    );
+    let user = format!(
+        "当前学习主题：{context_title}\n\n学习上下文：\n{context_text}\n\n用户请求：\n{question}"
+    );
+    let endpoint = format!("{base_url}/chat/completions");
+    let response = Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|_| "无法初始化 AI 请求。".to_string())?
+        .post(endpoint)
+        .bearer_auth(api_key)
+        .json(&json!({
+            "model": model,
+            "messages": [
+                { "role": "system", "content": system },
+                { "role": "user", "content": user }
+            ],
+            "temperature": 0.35
+        }))
+        .send()
+        .await
+        .map_err(|_| "无法连接模型服务，请检查服务地址与网络。".to_string())?
+        .error_for_status()
+        .map_err(|_| "模型服务拒绝了请求，请检查模型名称、API Key 与账户额度。".to_string())?;
+    let payload: Value = response
+        .json()
+        .await
+        .map_err(|_| "模型服务返回了无法识别的响应。".to_string())?;
+    let content = payload
+        .pointer("/choices/0/message/content")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "模型没有返回可用内容。".to_string())?;
+    Ok(AssistantAnswer { content: content.to_string(), model })
+}
+
+#[tauri::command]
 fn open_external_url(url: String) -> Result<(), String> {
     if !is_safe_external_url(&url) {
         return Err("只能打开有效的 HTTPS 来源链接。".to_string());
@@ -1527,7 +1699,13 @@ fn open_external_url(url: String) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![refresh_discoveries, open_external_url])
+        .invoke_handler(tauri::generate_handler![
+            refresh_discoveries,
+            open_external_url,
+            get_assistant_config,
+            save_assistant_config,
+            ask_assistant
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
