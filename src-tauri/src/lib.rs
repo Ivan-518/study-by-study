@@ -65,6 +65,27 @@ struct AssistantAnswer {
     model: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AssessmentRequest {
+    lesson_title: String,
+    context_text: String,
+    question: String,
+    answer: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AssessmentResult {
+    level: String,
+    feedback: String,
+    strengths: Vec<String>,
+    gap: String,
+    next_step: String,
+    follow_up_question: String,
+    model: String,
+}
+
 #[derive(Debug, Clone)]
 struct Candidate {
     source_id: String,
@@ -1664,6 +1685,78 @@ async fn ask_assistant(app: tauri::AppHandle, input: AssistantRequest) -> Result
 }
 
 #[tauri::command]
+async fn assess_understanding(app: tauri::AppHandle, input: AssessmentRequest) -> Result<AssessmentResult, String> {
+    if input.answer.trim().is_empty() || input.answer.len() > 8_000 {
+        return Err("请先写下你的回答，再提交理解检验。".to_string());
+    }
+    let connection = open_database(&app)?;
+    let base_url = metadata_value(&connection, "assistant_base_url")?
+        .and_then(|value| safe_assistant_base_url(&value))
+        .ok_or_else(|| "请先在设置中配置 AI 模型服务。".to_string())?;
+    let model = metadata_value(&connection, "assistant_model")?
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "请先在设置中填写模型名称。".to_string())?;
+    let api_key = assistant_key_entry()?
+        .get_password()
+        .map_err(|_| "未找到 API Key，请重新保存模型配置。".to_string())?;
+    let context = input.context_text.trim().chars().take(8_000).collect::<String>();
+    let question = input.question.trim().chars().take(2_000).collect::<String>();
+    let answer = input.answer.trim().chars().take(8_000).collect::<String>();
+    let system = "你是严格但鼓励性的 AI 学习导师。根据课程上下文和用户回答，判断是否真正理解。不要因为表面术语正确就判定掌握。只输出一个 JSON 对象，不要 Markdown 或代码块。JSON schema: {\"level\":\"mastered|review|practice\",\"feedback\":\"不超过180字的具体反馈\",\"strengths\":[\"不超过3条\"],\"gap\":\"一个最重要的缺口，没有则空字符串\",\"next_step\":\"可立即执行的下一步\",\"follow_up_question\":\"若未掌握，给一道更聚焦的追问；若掌握则给一个迁移应用题\"}";
+    let user = format!(
+        "课程：{}\n\n课程上下文：\n{}\n\n检验题：\n{}\n\n用户回答：\n{}",
+        input.lesson_title.trim(), context, question, answer
+    );
+    let response = Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|_| "无法初始化理解检验请求。".to_string())?
+        .post(format!("{base_url}/chat/completions"))
+        .bearer_auth(api_key)
+        .json(&json!({
+            "model": model,
+            "messages": [
+                { "role": "system", "content": system },
+                { "role": "user", "content": user }
+            ],
+            "temperature": 0.15,
+            "response_format": { "type": "json_object" }
+        }))
+        .send()
+        .await
+        .map_err(|_| "无法连接模型服务，请检查网络。".to_string())?
+        .error_for_status()
+        .map_err(|_| "模型服务拒绝了理解检验请求，请检查模型兼容性与额度。".to_string())?;
+    let payload: Value = response
+        .json()
+        .await
+        .map_err(|_| "模型服务返回了无法识别的响应。".to_string())?;
+    let raw = payload
+        .pointer("/choices/0/message/content")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .ok_or_else(|| "模型没有返回理解检验结果。".to_string())?;
+    let clean = raw.trim_matches('`').trim_start_matches("json").trim();
+    let mut result: AssessmentResult = serde_json::from_str(clean)
+        .map_err(|_| "模型没有按要求返回检验结果，请重试。".to_string())?;
+    if !matches!(result.level.as_str(), "mastered" | "review" | "practice") {
+        result.level = "review".to_string();
+    }
+    result.feedback = result.feedback.chars().take(300).collect();
+    result.gap = result.gap.chars().take(300).collect();
+    result.next_step = result.next_step.chars().take(300).collect();
+    result.follow_up_question = result.follow_up_question.chars().take(500).collect();
+    result.strengths = result
+        .strengths
+        .into_iter()
+        .take(3)
+        .map(|value| value.chars().take(120).collect())
+        .collect();
+    result.model = model;
+    Ok(result)
+}
+
+#[tauri::command]
 fn open_external_url(url: String) -> Result<(), String> {
     if !is_safe_external_url(&url) {
         return Err("只能打开有效的 HTTPS 来源链接。".to_string());
@@ -1704,7 +1797,8 @@ pub fn run() {
             open_external_url,
             get_assistant_config,
             save_assistant_config,
-            ask_assistant
+            ask_assistant,
+            assess_understanding
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

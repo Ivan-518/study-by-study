@@ -16,10 +16,22 @@ export type LearningItem = {
   completedAt?: string
 }
 export type DiscoveryLearningItem = Pick<LearningItem, 'title' | 'summary' | 'url' | 'topics' | 'source'>
+export type LessonAssessmentLevel = 'mastered' | 'review' | 'practice'
+export type LessonAssessment = {
+  level: LessonAssessmentLevel
+  feedback: string
+  strengths: string[]
+  gap: string
+  nextStep: string
+  followUpQuestion: string
+  assessedAt: string
+  model: string
+}
 
 const savedNotes = localStorage.getItem('nexus-notes')
 const savedLearningItems = localStorage.getItem('nexus-learning-items')
 const savedLessonProgress = localStorage.getItem('nexus-lesson-progress')
+const savedLessonAssessments = localStorage.getItem('nexus-lesson-assessments')
 
 function readLearningItems(): LearningItem[] {
   if (!savedLearningItems) return []
@@ -39,6 +51,15 @@ function readLessonProgress(): Record<string, number> {
     return {}
   }
 }
+function readLessonAssessments(): Record<string, LessonAssessment> {
+  if (!savedLessonAssessments) return {}
+  try {
+    const value = JSON.parse(savedLessonAssessments) as unknown
+    return value && typeof value === 'object' ? value as Record<string, LessonAssessment> : {}
+  } catch {
+    return {}
+  }
+}
 
 export const useLearningStore = defineStore('learning', {
   state: () => ({
@@ -49,6 +70,7 @@ export const useLearningStore = defineStore('learning', {
     selectedSources: ['Agentic RAG 最佳实践指南', 'agentic-rag-best-practices', '面向复杂任务的 Agentic RAG'],
     learningItems: readLearningItems(),
     lessonProgress: readLessonProgress(),
+    lessonAssessments: readLessonAssessments(),
     currentLessonId: '',
   }),
   actions: {
@@ -97,5 +119,15 @@ export const useLearningStore = defineStore('learning', {
       localStorage.setItem('nexus-lesson-progress', JSON.stringify(this.lessonProgress))
     },
     setCurrentLesson(id: string) { this.currentLessonId = id },
+    saveLessonAssessment(id: string, assessment: Omit<LessonAssessment, 'assessedAt'>) {
+      this.lessonAssessments[id] = { ...assessment, assessedAt: new Date().toISOString() }
+      const progress = assessment.level === 'mastered' ? 100 : Math.max(this.lessonProgress[id] || 0, 70)
+      this.updateLessonProgress(id, progress)
+      localStorage.setItem('nexus-lesson-assessments', JSON.stringify(this.lessonAssessments))
+    },
+    clearLessonAssessment(id: string) {
+      delete this.lessonAssessments[id]
+      localStorage.setItem('nexus-lesson-assessments', JSON.stringify(this.lessonAssessments))
+    },
   },
 })

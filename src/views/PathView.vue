@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { lessons, type Lesson, type LearningTrack } from '../data/learningContent'
+import type { LessonAssessment } from '../stores/learning'
 
-const props = defineProps<{ lessonProgress: Record<string, number>; currentLessonId: string }>()
+const props = defineProps<{ lessonProgress: Record<string, number>; lessonAssessments: Record<string, LessonAssessment>; currentLessonId: string }>()
 const emit = defineEmits<{ 'open-lesson': [id: string] }>()
 const activeTrack = ref<LearningTrack>('应用开发')
 const trackLessons = computed(() => lessons.filter((lesson) => lesson.track === activeTrack.value))
@@ -11,6 +12,8 @@ const overallProgress = computed(() => lessons.length ? Math.round(Object.values
 
 function lessonStatus(lesson: Lesson) {
   const progress = props.lessonProgress[lesson.id] || 0
+  const assessment = props.lessonAssessments[lesson.id]
+  if (assessment) return assessment.level === 'mastered' ? '已掌握' : assessment.level === 'practice' ? '需要实践' : '需要复习'
   if (progress === 100) return '已完成'
   if (progress > 0) return `已学习 ${progress}%`
   return '未开始'
