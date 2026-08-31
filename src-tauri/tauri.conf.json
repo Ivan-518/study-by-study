@@ -13,12 +13,12 @@
                 "windows":  [
                                 {
                                     "title":  "Nexus 学习站",
-                                    "width":  1440,
+                                    "width":  1600,
                                     "height":  900,
                                     "resizable":  true,
                                     "fullscreen":  false,
-                                    "minWidth":  1100,
-                                    "minHeight":  720
+                                    "minWidth":  1200,
+                                    "minHeight":  760
                                 }
                             ],
                 "security":  {
